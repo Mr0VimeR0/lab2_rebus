@@ -11,6 +11,7 @@ typedef struct {
 	int numbers[26];
 	int used[10];
 	int zero[26];
+	int max_numbers;
 } Rebus;
 
 char* read_line(FILE* f) {
@@ -82,6 +83,7 @@ int parser(char* line, Rebus* reb) {
 		if (reb->slags[i][1] != '\0') reb->zero[reb->slags[i][0] - 'A'] = 1;
 	}
 	if (reb->result[1] != '\0') reb->zero[reb->result[0] - 'A'] = 1;
+	reb->max_numbers = strlen(reb->result);
 	return 1;
 }
 
@@ -105,6 +107,33 @@ int check_solution(Rebus* reb) {
 	return sum == transfer(reb->result, reb->numbers);
 }
 
+int check_razr(Rebus* reb) {
+	int carry = 0;
+	for (int place = 0; place < reb->max_numbers; place++) {
+		int sum = carry;
+		int finish = 1;
+		for (int i = 0; i < reb->slag_count; i++) {
+			int len = strlen(reb->slags[i]);
+			int pos = len - 1 - place;
+			if (pos < 0) continue;
+			int num = reb->numbers[reb->slags[i][pos] - 'A'];
+			if (num == -1) {
+				finish = 0;
+				break;
+			}
+			sum += num;
+		}
+		if (!finish) return 1;
+		int rlen = strlen(reb->result);
+		int rpos = rlen - 1 - place;
+		int rnum = reb->numbers[reb->result[rpos] - 'A'];
+		if (rnum == -1) return 1;
+		if (sum % 10 != rnum) return 0;
+		carry = sum / 10;
+	}
+	return carry == 0;
+}
+
 int solve(Rebus* reb, int index) {
 	if (index == reb->letter_count) return check_solution(reb);
 	int letter_index = reb->letters[index] - 'A';
@@ -113,6 +142,11 @@ int solve(Rebus* reb, int index) {
 		if (i == 0 && reb->zero[letter_index]) continue;
 		reb->used[i] = 1;
 		reb->numbers[letter_index] = i;
+		if (!check_razr(reb)) {
+			reb->used[i] = 0;
+			reb->numbers[letter_index] = -1;
+			continue;
+		}
 		if (solve(reb, index + 1)) return 1;
 		reb->used[i] = 0;
 		reb->numbers[letter_index] = -1;
