@@ -10,6 +10,7 @@ typedef struct {
 	int letter_count;
 	int numbers[26];
 	int used[10];
+	int zero[26];
 } Rebus;
 
 char* read_line(FILE* f) {
@@ -77,6 +78,10 @@ int parser(char* line, Rebus* reb) {
 	for (int i = 0; i < 26; i++) {
 		reb->numbers[i] = -1;
 	}
+	for (int i = 0; i < reb->slag_count; i++) {
+		if (reb->slags[i][1] != '\0') reb->zero[reb->slags[i][0] - 'A'] = 1;
+	}
+	if (reb->result[1] != '\0') reb->zero[reb->result[0] - 'A'] = 1;
 	return 1;
 }
 
@@ -105,6 +110,7 @@ int solve(Rebus* reb, int index) {
 	int letter_index = reb->letters[index] - 'A';
 	for (int i = 0; i <= 9; i++) {
 		if (reb->used[i]) continue;
+		if (i == 0 && reb->zero[letter_index]) continue;
 		reb->used[i] = 1;
 		reb->numbers[letter_index] = i;
 		if (solve(reb, index + 1)) return 1;
