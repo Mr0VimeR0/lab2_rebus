@@ -58,18 +58,21 @@ int parser(char* line, Rebus* reb) {
 		reb->slags[i] = tokens[i];
 	}
 	int see[26] = { 0 };
-	for (int i = 0; i < reb->slag_count; i++) {
-		for (int j = 0; reb->slags[i][j] != '\0'; j++) {
-			char c = reb->slags[i][j];
+	reb->max_numbers = strlen(reb->result);
+	for (int place = 0; place < reb->max_numbers; place++) {
+		for (int i = 0; i < reb->slag_count; i++) {
+			int len = strlen(reb->slags[i]);
+			int pos = len - 1 - place;
+			if (pos < 0) continue;
+			char c = reb->slags[i][pos];
 			if (!see[c - 'A']) {
 				see[c - 'A'] = 1;
 				reb->letters[reb->letter_count] = c;
 				reb->letter_count++;
 			}
 		}
-	}
-	for (int i = 0; reb->result[i] != '\0'; i++) {
-		char c = reb->result[i];
+		int rpos = reb->max_numbers - 1 - place;
+		char c = reb->result[rpos];
 		if (!see[c - 'A']) {
 			see[c - 'A'] = 1;
 			reb->letters[reb->letter_count] = c;
@@ -83,7 +86,6 @@ int parser(char* line, Rebus* reb) {
 		if (reb->slags[i][1] != '\0') reb->zero[reb->slags[i][0] - 'A'] = 1;
 	}
 	if (reb->result[1] != '\0') reb->zero[reb->result[0] - 'A'] = 1;
-	reb->max_numbers = strlen(reb->result);
 	return 1;
 }
 
