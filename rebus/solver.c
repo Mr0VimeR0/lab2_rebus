@@ -9,9 +9,10 @@ typedef struct {
 	char letters[26];
 	int letter_count;
 	int numbers[26];
-	int used[10];
-	int zero[26];
+	int used_mask;
+	int zero_mask;
 	int max_numbers;
+	int slag_len[7];
 } Rebus;
 
 char* read_line(FILE* f) {
@@ -53,16 +54,18 @@ int parser(char* line, Rebus* reb) {
 		tok = strtok(NULL, " +=");
 	}
 	reb->result = tokens[n - 1];
-	reb->slag_count = n - 1;
-	for (int i = 0; i < reb->slag_count; i++) {
+	int slag_count = n - 1;
+	reb->slag_count = slag_count;
+	for (int i = 0; i < slag_count; i++) {
 		reb->slags[i] = tokens[i];
+		reb->slag_len[i] = strlen(tokens[i]);
 	}
 	int see[26] = { 0 };
-	reb->max_numbers = strlen(reb->result);
-	for (int place = 0; place < reb->max_numbers; place++) {
-		for (int i = 0; i < reb->slag_count; i++) {
-			int len = strlen(reb->slags[i]);
-			int pos = len - 1 - place;
+	int max_numbers = strlen(reb->result);
+	reb->max_numbers = max_numbers;
+	for (int place = 0; place < max_numbers; place++) {
+		for (int i = 0; i < slag_count; i++) {
+			int pos = reb->slag_len[i] - 1 - place;
 			if (pos < 0) continue;
 			char c = reb->slags[i][pos];
 			if (!see[c - 'A']) {
@@ -71,7 +74,7 @@ int parser(char* line, Rebus* reb) {
 				reb->letter_count++;
 			}
 		}
-		int rpos = reb->max_numbers - 1 - place;
+		int rpos = max_numbers - 1 - place;
 		char c = reb->result[rpos];
 		if (!see[c - 'A']) {
 			see[c - 'A'] = 1;
@@ -82,10 +85,10 @@ int parser(char* line, Rebus* reb) {
 	for (int i = 0; i < 26; i++) {
 		reb->numbers[i] = -1;
 	}
-	for (int i = 0; i < reb->slag_count; i++) {
-		if (reb->slags[i][1] != '\0') reb->zero[reb->slags[i][0] - 'A'] = 1;
+	for (int i = 0; i < slag_count; i++) {
+		if (reb->slags[i][1] != '\0') reb->zero_mask |= (1 << (reb->slags[i][0] - 'A'));
 	}
-	if (reb->result[1] != '\0') reb->zero[reb->result[0] - 'A'] = 1;
+	if (reb->result[1] != '\0') reb->zero_mask |= (1 << (reb->result[0] - 'A'));
 	return 1;
 }
 
@@ -98,12 +101,13 @@ long long transfer(char* word, int* numbers) {
 }
 
 int check_solution(Rebus* reb) {
-	for (int i = 0; i < reb->slag_count; i++) {
+	int slag_count = reb->slag_count;
+	for (int i = 0; i < slag_count; i++) {
 		if (reb->slags[i][1] != '\0' && reb->numbers[reb->slags[i][0] - 'A'] == 0) return 0;
 	}
 	if (reb->result[1] != '\0' && reb->numbers[reb->result[0] - 'A'] == 0) return 0;
 	long long sum = 0;
-	for (int i = 0; i < reb->slag_count; i++) {
+	for (int i = 0; i < slag_count; i++) {
 		sum += transfer(reb->slags[i], reb->numbers);
 	}
 	return sum == transfer(reb->result, reb->numbers);
@@ -111,12 +115,13 @@ int check_solution(Rebus* reb) {
 
 int check_razr(Rebus* reb) {
 	int carry = 0;
-	for (int place = 0; place < reb->max_numbers; place++) {
+	int max_numbers = reb->max_numbers;
+	int slag_count = reb->slag_count;
+	for (int place = 0; place < max_numbers; place++) {
 		int sum = carry;
 		int finish = 1;
-		for (int i = 0; i < reb->slag_count; i++) {
-			int len = strlen(reb->slags[i]);
-			int pos = len - 1 - place;
+		for (int i = 0; i < slag_count; i++) {
+			int pos = reb->slag_len[i] - 1 - place;
 			if (pos < 0) continue;
 			int num = reb->numbers[reb->slags[i][pos] - 'A'];
 			if (num == -1) {
@@ -125,9 +130,8 @@ int check_razr(Rebus* reb) {
 			}
 			sum += num;
 		}
-		if (!finish) return 1;
-		int rlen = strlen(reb->result);
-		int rpos = rlen - 1 - place;
+		if (!finish) return 1;;
+		int rpos = max_numbers - 1 - place;
 		int rnum = reb->numbers[reb->result[rpos] - 'A'];
 		if (rnum == -1) return 1;
 		if (sum % 10 != rnum) return 0;
@@ -136,21 +140,19 @@ int check_razr(Rebus* reb) {
 	return carry == 0;
 }
 
-int solve(Rebus* reb, int index) {
+int solve(Rebus* reb, int index, int used_mask) {
 	if (index == reb->letter_count) return check_solution(reb);
 	int letter_index = reb->letters[index] - 'A';
 	for (int i = 0; i <= 9; i++) {
-		if (reb->used[i]) continue;
-		if (i == 0 && reb->zero[letter_index]) continue;
-		reb->used[i] = 1;
+		int bit = 1 << i;
+		if (used_mask & bit) continue;
+		if (i == 0 && (reb->zero_mask & (1 << letter_index))) continue;
 		reb->numbers[letter_index] = i;
 		if (!check_razr(reb)) {
-			reb->used[i] = 0;
 			reb->numbers[letter_index] = -1;
 			continue;
 		}
-		if (solve(reb, index + 1)) return 1;
-		reb->used[i] = 0;
+		if (solve(reb, index + 1, used_mask | bit)) return 1;
 		reb->numbers[letter_index] = -1;
 	}
 	return 0;
@@ -178,7 +180,7 @@ int main(int argc, char** argv) {
 	while ((line = read_line(f)) != NULL) {
 		Rebus reb;
 		if (parser(line, &reb)) {
-			if (solve(&reb, 0)) print_solution(&reb);
+			if (solve(&reb, 0, 0)) print_solution(&reb);
 			else printf("No solutions: %s\n", line);
 		}
 		else printf("Parse Error\n");
